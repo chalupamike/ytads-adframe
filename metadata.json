@@ -1,0 +1,5 @@
+{
+  "name": "YouTube AdFrame Studio",
+  "description": "A tool to preview and build YouTube ad sequences across TV, Desktop, and Mobile devices with various ad format overlays.",
+  "requestFramePermissions": ["display-capture"]
+}
