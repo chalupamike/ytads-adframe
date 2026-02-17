@@ -418,7 +418,7 @@ export default function App() {
                 onClick={copyLdap}
                 className="flex items-center justify-center w-7 h-7 rounded-full border border-white/20 text-slate-400 hover:text-white hover:border-white/40 transition-all active:scale-90"
               >
-                <span className="text-sm font-bold leading-none mb-0.5">?</span>
+                <span className="text-sm">?</span>
               </button>
               
               {/* Hover Popup */}
