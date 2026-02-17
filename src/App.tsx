@@ -6,7 +6,8 @@ import { YouTubePlayer } from './components/YouTubePlayer';
 import { 
   Play, RotateCcw, Share2, ExternalLink, Pause, SkipBack, 
   SkipForward as SkipNext, Volume2, VolumeX, Circle, Square,
-  Pizza, Car, Trophy, Gamepad2, Smartphone, Laptop, Tv, Coffee, IceCream, Dumbbell, Activity, Puzzle
+  Pizza, Car, Trophy, Gamepad2, Smartphone, Laptop, Tv, Coffee, IceCream, Dumbbell, Activity, Puzzle,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -34,6 +35,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [isLdapCopied, setIsLdapCopied] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -48,6 +50,12 @@ export default function App() {
     }, 2500);
     return () => clearTimeout(timer);
   }, []);
+
+  const copyLdap = () => {
+    navigator.clipboard.writeText('chalupamike');
+    setIsLdapCopied(true);
+    setTimeout(() => setIsLdapCopied(false), 2000);
+  };
 
   const startPreview = () => {
     lastHandledIndexRef.current = -1;
@@ -405,9 +413,30 @@ export default function App() {
               <span className="text-[10px] lg:text-[11px] font-medium text-slate-400 tracking-wider">Ad experience preview</span>
             </div>
             <div className="h-5 w-px bg-white/10" />
-            <div className="hidden sm:flex items-center gap-2.5 text-[11px] lg:text-sm font-medium text-slate-400">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Preview
+            <div className="relative group">
+              <button 
+                onClick={copyLdap}
+                className="flex items-center justify-center w-7 h-7 rounded-full border border-white/20 text-slate-400 hover:text-white hover:border-white/40 transition-all active:scale-90"
+              >
+                <span className="text-sm font-bold leading-none mb-0.5">?</span>
+              </button>
+              
+              {/* Hover Popup */}
+              <div className="absolute left-0 top-full mt-3 w-64 p-4 bg-[#1A1A1A] border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none">
+                <div className="absolute -top-1.5 left-3 w-3 h-3 bg-[#1A1A1A] border-t border-l border-white/10 rotate-45" />
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {isLdapCopied ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      LDAP "chalupamike" copied!
+                    </span>
+                  ) : (
+                    <>
+                      Please contact <span className="text-white font-bold">@chalupamike</span> for any issues and requests
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
 

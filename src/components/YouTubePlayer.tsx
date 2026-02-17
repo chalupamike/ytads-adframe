@@ -549,6 +549,11 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
                 </div>
               </div>
               <div className="mt-6 flex flex-col items-center text-center max-w-[280px]">
+                {scene.advertiserName && (
+                  <span className="text-white text-lg font-bold drop-shadow-md mb-1">
+                    {scene.advertiserName}
+                  </span>
+                )}
                 <span className="text-white/80 text-sm font-medium leading-snug drop-shadow-md">
                   Learn more by scanning or sending to your phone
                 </span>
@@ -567,8 +572,13 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         >
           {/* Sponsored Label (Standard Brand Ads) */}
           {scene.adFormat !== AdFormatType.SKIPPABLE_PERFORMANCE && !isSqueezeback && (
-            <div className="h-9 flex items-center">
-              <span className="text-white text-sm font-bold drop-shadow-perf">
+            <div className="h-9 flex flex-col items-start">
+              {scene.advertiserName && (
+                <span className="text-white text-lg font-bold drop-shadow-perf leading-none mb-1">
+                  {scene.advertiserName}
+                </span>
+              )}
+              <span className="text-white text-sm font-bold drop-shadow-perf opacity-80">
                 Sponsored
               </span>
             </div>
@@ -589,7 +599,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
               </div>
               <div className="flex flex-col">
                 <span className="text-white text-base font-bold tracking-tight drop-shadow-perf">
-                  {scene.displayUrl || 'example.com'}
+                  {scene.advertiserName || scene.displayUrl || 'example.com'}
                 </span>
                 <div className="flex items-center gap-1.5 text-white/70 text-[12.5px] drop-shadow-perf">
                   <span className="font-bold">Sponsored</span>

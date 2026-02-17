@@ -12,6 +12,7 @@ const getVideoId = (url: string) => {
 
 const YoutubeMetadata: React.FC<{ url: string }> = ({ url }) => {
   const [title, setTitle] = useState<string | null>(null);
+  const [author, setAuthor] = useState<string | null>(null);
   const videoId = getVideoId(url);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ const YoutubeMetadata: React.FC<{ url: string }> = ({ url }) => {
         if (response.ok) {
           const data = await response.json();
           setTitle(data.title);
+          setAuthor(data.author_name);
         }
       } catch (e) {
         console.error('Failed to fetch YouTube metadata', e);
@@ -51,9 +53,15 @@ const YoutubeMetadata: React.FC<{ url: string }> = ({ url }) => {
         <p className="text-[11px] font-medium text-slate-300 truncate leading-tight">
           {title || 'Loading metadata...'}
         </p>
-        <p className="text-[9px] text-slate-500 font-mono mt-0.5">
-          ID: {videoId}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-[9px] text-slate-400 font-medium truncate">
+            {author || 'Unknown Channel'}
+          </p>
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-600" />
+          <p className="text-[9px] text-slate-500 font-mono">
+            {videoId}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -89,19 +97,58 @@ export const SceneBuilder: React.FC<SceneBuilderProps> = ({
   setResetKey,
 }) => {
   const addScene = (type: 'CONTENT' | 'AD') => {
+    const url = type === 'CONTENT' ? 'https://www.youtube.com/watch?v=36oRiPAn4Tw' : 'https://www.youtube.com/watch?v=Dr5b_venGHQ';
     const newScene: Scene = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      youtubeUrl: type === 'CONTENT' ? 'https://www.youtube.com/watch?v=36oRiPAn4Tw' : 'https://www.youtube.com/watch?v=Dr5b_venGHQ',
+      youtubeUrl: url,
       startTime: 0,
       skipOffset: 5,
       adFormat: type === 'AD' ? AdFormatType.SKIPPABLE_BRAND : undefined,
     };
     setScenes([...scenes, newScene]);
+    fetchMetadataForScene(newScene.id, url);
   };
 
   const updateScene = (id: string, updates: Partial<Scene>) => {
-    setScenes(scenes.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+    setScenes(scenes.map((s) => {
+      if (s.id === id) {
+        const updated = { ...s, ...updates };
+        
+        // If URL changed, trigger metadata fetch
+        if (updates.youtubeUrl && updates.youtubeUrl !== s.youtubeUrl) {
+          fetchMetadataForScene(id, updates.youtubeUrl);
+        }
+        
+        return updated;
+      }
+      return s;
+    }));
+  };
+
+  const fetchMetadataForScene = async (id: string, url: string) => {
+    try {
+      const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (response.ok) {
+        const data = await response.json();
+        const videoId = getVideoId(url);
+        
+        setScenes(prev => prev.map(s => {
+          if (s.id === id) {
+            return {
+              ...s,
+              advertiserName: s.advertiserName || data.author_name,
+              // Use video thumbnail as a fallback for logo if not set
+              advertiserLogoUrl: s.advertiserLogoUrl || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined),
+              headline: s.headline || data.title,
+            };
+          }
+          return s;
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to auto-fill metadata', e);
+    }
   };
 
   const removeScene = (id: string) => {
@@ -116,6 +163,8 @@ export const SceneBuilder: React.FC<SceneBuilderProps> = ({
       startTime: 0,
       skipOffset: 5,
       adFormat: AdFormatType.SKIPPABLE_BRAND,
+      advertiserName: 'Google',
+      advertiserLogoUrl: 'https://www.gstatic.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png',
     };
     setScenes([defaultAd]);
     setCurrentSceneIndex(0);
@@ -287,6 +336,33 @@ export const SceneBuilder: React.FC<SceneBuilderProps> = ({
                         </div>
                       )}
 
+                      {scene.type === 'AD' && (
+                        <div className="space-y-2.5">
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">Advertiser Name</label>
+                              <input
+                                type="text"
+                                value={scene.advertiserName || ''}
+                                placeholder="Advertiser Name"
+                                onChange={(e) => updateScene(scene.id, { advertiserName: e.target.value })}
+                                className="w-full text-sm p-2.5 bg-black border border-white/5 rounded text-slate-200 focus:outline-none focus:border-white/20"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">Logo URL</label>
+                              <input
+                                type="text"
+                                value={scene.advertiserLogoUrl || ''}
+                                placeholder="Logo URL"
+                                onChange={(e) => updateScene(scene.id, { advertiserLogoUrl: e.target.value })}
+                                className="w-full text-sm p-2.5 bg-black border border-white/5 rounded text-slate-200 focus:outline-none focus:border-white/20"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">YouTube URL</label>
                         <input
@@ -349,17 +425,7 @@ export const SceneBuilder: React.FC<SceneBuilderProps> = ({
                         {(scene.adFormat === AdFormatType.SKIPPABLE_PERFORMANCE || scene.adFormat === AdFormatType.SQUEEZEBACK_QR) && (
                         <div className="space-y-2.5">
                           <div>
-                            <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">Advertiser Logo URL</label>
-                            <input
-                              type="text"
-                              value={scene.advertiserLogoUrl || ''}
-                              placeholder="Logo URL"
-                              onChange={(e) => updateScene(scene.id, { advertiserLogoUrl: e.target.value })}
-                              className="w-full text-sm p-2.5 bg-black border border-white/5 rounded text-slate-200 focus:outline-none focus:border-white/20"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">URL</label>
+                            <label className="text-[10.5px] font-bold text-slate-600 uppercase tracking-tighter">Display URL</label>
                             <input
                               type="text"
                               value={scene.displayUrl || ''}

@@ -23,6 +23,7 @@ export interface Scene {
   ctaText?: string; // for performance ads
   displayUrl?: string; // for performance ads
   headline?: string; // for performance ads
+  advertiserName?: string; // for brand ads
   advertiserLogoUrl?: string; // for performance ads
 }
 
