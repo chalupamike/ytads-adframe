@@ -7,7 +7,7 @@ import {
   Play, RotateCcw, Share2, ExternalLink, Pause, SkipBack, 
   SkipForward as SkipNext, Volume2, VolumeX, Circle, Square,
   Pizza, Car, Trophy, Gamepad2, Smartphone, Laptop, Tv, Coffee, IceCream, Dumbbell, Activity, Puzzle,
-  HelpCircle
+  HelpCircle, Maximize, Minimize
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,6 +36,7 @@ export default function App() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [isLdapCopied, setIsLdapCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -50,6 +51,27 @@ export default function App() {
     }, 2500);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    const container = document.getElementById('preview-player-container');
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      container.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const copyLdap = () => {
     navigator.clipboard.writeText('chalupamike');
@@ -256,13 +278,17 @@ export default function App() {
     if (!element || isRecording) return;
 
     try {
-      // 1. Request display media
+      // 1. Enter fullscreen first for immersive capture
+      if (!document.fullscreenElement) {
+        await element.requestFullscreen();
+      }
+
+      // 2. Request display media
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { 
           displaySurface: 'browser',
           cursor: 'never'
         },
-        // These options help show "This Tab" prominently in the dialog
         preferCurrentTab: true,
         selfBrowserSurface: 'include',
         systemAudio: 'include',
@@ -274,58 +300,13 @@ export default function App() {
       setRecordingTime(0);
       chunksRef.current = [];
 
-      // 2. Setup Canvas Flattening
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await video.play();
-
-      const canvas = document.createElement('canvas');
-      canvasRef.current = canvas;
-      const rect = element.getBoundingClientRect();
-      
-      // Use document.documentElement for more accurate viewport dimensions
-      const viewportWidth = document.documentElement.clientWidth;
-      const viewportHeight = document.documentElement.clientHeight;
-      
-      // Calculate scale between stream and viewport
-      const scaleX = video.videoWidth / viewportWidth;
-      const scaleY = video.videoHeight / viewportHeight;
-      
-      // Set canvas size to the element's size in the stream's resolution
-      canvas.width = rect.width * scaleX;
-      canvas.height = rect.height * scaleY;
-      const ctx = canvas.getContext('2d', { alpha: false });
-
-      const drawFrame = () => {
-        if (ctx && video && element) {
-          const currentRect = element.getBoundingClientRect();
-          
-          // Clear with black background
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          // Draw the specific region from the video stream
-          ctx.drawImage(
-            video,
-            currentRect.left * scaleX, 
-            currentRect.top * scaleY, 
-            currentRect.width * scaleX, 
-            currentRect.height * scaleY,
-            0, 0, canvas.width, canvas.height
-          );
-          requestRef.current = requestAnimationFrame(drawFrame);
-        }
-      };
-      requestRef.current = requestAnimationFrame(drawFrame);
-
-      // 3. Setup MediaRecorder
-      const recorderStream = canvas.captureStream(30);
+      // 3. Setup MediaRecorder directly on the stream (no cropping needed in fullscreen)
       const mimeType = 'video/webm;codecs=vp9';
       const options = MediaRecorder.isTypeSupported(mimeType) 
-        ? { mimeType, videoBitsPerSecond: 5000000 } 
+        ? { mimeType, videoBitsPerSecond: 8000000 } 
         : { mimeType: 'video/webm' };
 
-      const recorder = new MediaRecorder(recorderStream, options);
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -339,9 +320,14 @@ export default function App() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `youtube-ad-recording-${Date.now()}.webm`;
+        a.download = `youtube-ad-full-capture-${Date.now()}.webm`;
         a.click();
         URL.revokeObjectURL(url);
+        
+        // Exit fullscreen when recording stops
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
       };
 
       recorder.start(1000); // Collect data every second
@@ -358,6 +344,11 @@ export default function App() {
     } catch (err: any) {
       console.error('Failed to start recording:', err);
       setIsRecording(false);
+      
+      // Exit fullscreen if we failed to start
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
       
       if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
         setRecordingError('Permission denied. Please allow screen sharing to record.');
@@ -653,7 +644,7 @@ export default function App() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <div className="flex items-center gap-2 bg-white/5 rounded-full px-2 py-1 border border-white/10 relative">
+                <div className="flex items-center gap-2 bg-white/5 rounded-full px-2 py-1 border border-white/10 relative group/capture">
                   {isRecording && (
                     <span className="text-[10px] font-mono font-bold text-red-500 px-2 animate-pulse">
                       REC {formatTime(recordingTime)}
@@ -666,10 +657,17 @@ export default function App() {
                         ? 'bg-red-500 text-white hover:bg-red-600' 
                         : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
-                    title={isRecording ? "Stop Recording" : "Start Recording"}
                   >
-                    {isRecording ? <Square size={18} fill="currentColor" /> : <Circle size={18} fill="currentColor" />}
+                    {isRecording ? <Square size={16} fill="currentColor" /> : <Circle size={16} fill="currentColor" />}
                   </button>
+
+                  {/* Hover Popup */}
+                  <div className="absolute bottom-full right-0 mb-3 w-48 p-3 bg-[#1A1A1A] border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover/capture:opacity-100 group-hover/capture:visible transition-all z-[100] pointer-events-none">
+                    <div className="absolute -bottom-1.5 right-4 w-3 h-3 bg-[#1A1A1A] border-b border-r border-white/10 rotate-45" />
+                    <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider text-center">
+                      Feature still in progress
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={toggleMute}
@@ -677,6 +675,13 @@ export default function App() {
                   title={isMuted ? "Unmute" : "Mute"}
                 >
                   {isMuted ? <VolumeX size={21} /> : <Volume2 size={21} />}
+                </button>
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all"
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                >
+                  {isFullscreen ? <Minimize size={21} /> : <Maximize size={21} />}
                 </button>
               </div>
             </div>
